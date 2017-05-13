@@ -2,6 +2,7 @@
 #Some files have markers on channels 7 and 8
 #Some have spurious markers
 
+#try change
 #This program checks where and when markers occur and sets the correct channel for analysis
 
 setwd("~/doppler_analysis") #this script saved in Git repository
@@ -10,7 +11,7 @@ myfileloc<-"~/Dropbox/R/DB_otherscripts/Doppler/" #directory for files
 #setwd("c://Users/Alex/Dropbox/Doppler/")
 
 library(xlsx)
-require(dplyr)
+require(dplyr) 
 
 
 #Timings for Freezefoot. The marker occurs at the start of the cartoon
