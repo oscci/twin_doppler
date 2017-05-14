@@ -15,7 +15,8 @@
 # This can be detected by timings
 
 #setwd("C:/Users/dbishop/Dropbox/R/DB_otherscripts/doppler") #set working directory
-setwd("~/Dropbox/R/DB_otherscripts/Doppler")
+filedir<-"~/Dropbox/R/DB_otherscripts/Doppler/" #setting directory for files
+setwd("~/Doppler_analysis")
 #setwd("C:/Users/wilsona/Dropbox/Doppler")
 
 #install.packages(c("readxl","dplyr"))
@@ -39,8 +40,8 @@ extremelo=60;
 # Toggle these initialdatacheck values to view aspects of analysis
 # Once satisfied, set all to zero for fast analysis
 #------------------------------------------------------------------
-briefinspect=0; #set to 1 to see a sample of the file to check markers etc are there
-initialdatacheck=0; #set to 1 to view raw data for each epoch
+briefinspect=1; #set to 1 to see a sample of the file to check markers etc are there
+initialdatacheck=1; #set to 1 to view raw data for each epoch
 initialdatacheck1=0; # set to 1 to view epochs after normalisation
 initialdatacheck2=0; #set to 1 to view epochs after heartbeat Correction
 initialdatacheck3=0; # set to 1 to visualise after baseline correction
@@ -49,7 +50,10 @@ initialdatacheck4=1; # set to 1 to plot average for each subject
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
-filelist <- read.xlsx("myfilelist_R2.xlsx",sheetName="Sheet1")
+xlsfile<-"myfilelist_R2.xlsx"
+xlsfilepath<-paste(filedir,xlsfile,sep='')
+
+filelist <- read.xlsx(xlsfilepath,sheetName="Sheet1")
 # This is an xls file that has list of files, include/exclude, and flag for each trial
 # specifying whether it is included (or excluded because procedural error, 
 # such as talking during silent period, or not talking during talk period)
@@ -58,45 +62,50 @@ filelist <- read.xlsx("myfilelist_R2.xlsx",sheetName="Sheet1")
 
 
 #######################################################################
-mysub=284
-markerchannel<-8
+mysub=26
+
 #select file here or have loop
 ########################################################################
 
-
-myname=paste(filelist[mysub,2],".exp",sep="")
+mysubname<-filelist[mysub,2]
+myname=paste(filedir,mysubname,".exp",sep="")
 
 #NB. can double click on exp files to open in word and see header with ID and date/time
 dat <- read.table(myname, skip = 6,  header =FALSE, sep ='\t') #read .exp file in to table
 
-wantcols=c(2,3,4,markerchannel) #csec, L, R,marker #select columns of interest and put in shortdat
+wantcols=c(2,3,4,7,8) #csec, L, R,markers #select columns of interest and put in shortdat
 shortdat=data.frame(dat[,wantcols])
-colnames(shortdat)=c("csec","L","R","marker")
+colnames(shortdat)=c("csec","L","R","marker1","marker2")
 
 rawdata=filter(shortdat, row_number() %% 4 == 0) #downsample to 25 Hz by taking every 4th point
 allpts=nrow(rawdata) #total N points in long file
 rawdata[,1]=(seq(from=1,to=allpts*4,by=4)-1)/100 #create 1st column which is time in seconds from start
-colnames(rawdata)=c("sec","L","R","marker")
+colnames(rawdata)=c("sec","L","R","marker1","marker2")
 
 #rm(dat,shortdat) #clear original input files from workspace
 
 attach(rawdata) #makes it easier to use variables from dataframe
 #------------------------------------------------------------------------
-#brief plot of 1500 pts to check all OK; range here is arbitrary
+#brief plot of first 3000 pts to check all OK; range here is arbitrary
 if (briefinspect==1)
 {
-  x=sec[3000:5000]
-  y=L[3000:5000]
-  z=R[3000:5000]
-  w=marker[3000:5000]
-  
+  x=sec[1:3000]
+  y=L[1:3000]
+  z=R[1:3000]
+  w1=marker1[1:3000]
+  w2=marker2[1:3000]
   plot(x,y, type="n") #set up plot - doesn't actually plot anything
   lines(x,y,col="red")
-  lines(x,z,col="blue")
-  lines(x,w)
+  lines(x,z,col="lightblue")
+  lines(x,w1)
+  lines(x,w2,lty=4)
+  text(50,50,'chan 7 marker black, chan 8 marker dotted')
   
+  line <- readline()
   #This should show left (red) and right (blue) channels and some markers in black
-}
+  #Both marker channels now shown
+  #There is often a spurious marker right at the start
+  }
 #----------------------------------------------------------------------
 samplingrate=25
 prepoints=premarker*samplingrate
@@ -106,47 +115,86 @@ poiendpoints=poiend*samplingrate
 basepoints=1:-prepoints; #baseline is interval prior to marker
 maxtrials=30; #needed to set dim for storing rejected epochs
 
-#----------------------------------------------------------------------
+----------------------------------------------------------------------
 #Now find markers; place where go from low to high value
 #------------------------------------------------------------------
-mylen=nrow(rawdata);
-markerplus=c(0 ,marker);
-markerchan=c(marker,0); #create vectors with offset of one
-markersub=markerplus-markerchan;#start of marker indicated by large difference in level
 
-maxmarker=max(marker)
 #markersize=maxmarker-20 #markersize varies with computer? But this should catch all
-markersize=80
+markersize=10 #previously set to 80; varies a fair bit, but should not get spurious activity
+#with this setting, as background variation is below 1
+mylen=nrow(rawdata)
 markerrange=seq(-prepoints:mylen-postpoints);#can't have markers right at start or end
-origmarkerlist=which(markersub[markerrange]>markersize)
-origmarkerlist=origmarkerlist-prepoints;#need to subtract prepoints (-ve value, so add in effect)
-# NB this step takes into account that the marker occurs at start of baseline- 
-# We therefore adjust so that in effect we are using a marker at a point that is later than this
-# (ie when the 'talk' signal appears)
-
-
+allmarkerlist<-data.frame(matrix(rep(NA,124),ncol=2)) #will hold markers from both channels, 1 col denotes channel, and other is latency
+thisoffset=0
+for (mychannel in 1:2){
+  marker<-marker1
+  startcol<-48
+  if (mychannel==2){marker<-marker2
+  startcol<-54} #information about markers will be written back to columns in xls file
+  #in range 48-53 for channel 7 and 54 onwards for channel 8
+  
+  markerplus=c(0 ,marker);
+  markerchan=c(marker,0); #create vectors with offset of one
+  markersub=markerplus-markerchan;#start of marker indicated by large difference in level
+  
+  maxmarker=max(marker)
+  
+  origmarkerlist=which(markersub[markerrange]>markersize)
+  origmarkerlist=origmarkerlist-prepoints;#need to subtract prepoints (-ve value, so add in effect)
+  # NB this step takes into account that the marker occurs at start of baseline- 
+  # We therefore adjust so that in effect we are using a marker at a point that is later than this
+  # (ie when the 'talk' signal appears)
+  
+   nmarkers=length(origmarkerlist);
+  filelist[mysub,startcol]<-nmarkers
+  filelist[mysub,startcol+1]<-length(spuriousmarkers)
+  filelist[mysub,startcol+2]<-origmarkerlist[1]
+  filelist[mysub,startcol+3]<-origmarkerlist[2]
+  filelist[mysub,startcol+4]<-origmarkerlist[3]
+  filelist[mysub,startcol+5]<-origmarkerlist[3]-origmarkerlist[2]
+  thislen<-length(markerlist)
+  allmarkerlist[(1+thisoffset):(thisoffset+nmarkers),1]<-mychannel #record the channel of origin
+  allmarkerlist[(1+thisoffset):(thisoffset+nmarkers),2]<-origmarkerlist #record latency of marker
+  thisoffset<-thisoffset+nmarkers
+}
+filelist[mysub,startcol+6]<-filelist[mysub,57]-filelist[mysub,51]
+allmarkerlist <- allmarkerlist[order(allmarkerlist$X2),] 
+#----------------------------------------------------------------------
 #----------------------------------------------------------------------
 # Identify and remove spurious markers
 #----------------------------------------------------------------------
-#Check that markers are at least 30 s apart
-intervals=c(sec[origmarkerlist],10000)-c(0,sec[origmarkerlist])
-intervals=intervals[1:(length(origmarkerlist)-1)] #ignore last
+#Check that markers are at least 2 s apart
+intervals=c(sec[allmarkerlist$X2],10000)-c(0,sec[allmarkerlist$X2])#distance between markers in seconds
+intervals=intervals[1:(nrow(allmarkerlist)-1)] #ignore last
 #First and last values will be arbitrarily large; others should be around 40 s but may be longer if
 #recording interrupted
 #Shorter intervals indicate there have been spurious markers
 
-spuriousmarkers=which(intervals<13) #in fact the short ones are the ones we want!
+spuriousmarkers=which(intervals<14) #in fact the short ones are the ones we want!
 #brief interval  is duration of video
-# retain markers with short interval 
+# retain markers with short interval
 if (length(spuriousmarkers)>0){
-  spuriousmarkers=c(spuriousmarkers,length(origmarkerlist))
-  markerlist=origmarkerlist[spuriousmarkers]#keep first and those with index of spurious marker
-  
-  #markerlist=origmarkerlist[-spuriousmarkers]#alternative:excluding those with short interval
-  #  markerlist=markerlist[2:length(markerlist)]
+  spuriousmarkers<-c(spuriousmarkers,nrow(allmarkerlist))
+  markerlist<-allmarkerlist$X2[spuriousmarkers]#keep first and those with index of spurious marker
+  chanlist<-allmarkerlist$X1[spuriousmarkers]
   }
-if (length(spuriousmarkers)==0){markerlist=origmarkerlist}
-nmarkers=length(markerlist);
+if (length(spuriousmarkers)==0){
+  markerlist=allmarkerlist$X2
+  chanlist<-allmarkerlist$X2
+}
+
+markerlist<-markerlist[!is.na(markerlist)]
+chanlist<-chanlist[!is.na(chanlist)]
+if(length(markerlist)>30){
+  markerlist<-markerlist[2:length(markerlist)]
+  chanlist<-chanlist[2:length(chanlist)]
+}
+thischan<-chanlist[1] #find which marker channel we have selected
+for (i in 1:length(chanlist)){
+  if (chanlist[i]!=thischan) 
+      {thischan<-9}
+} #any discrepancy in channel of selected markers will be flagged up as 9
+filelist[mysub,startcol+7]<-thischan+6 #marker recorded as channel 7 or 8
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
@@ -182,10 +230,13 @@ zmean=rep(0,2)
 mymax=max(rawdata[,2:3])
 intmax=100*(1+round(mymax/100))
 
-droprej[1]=quantile(L,.0001)
-droprej[2]=quantile(R,.0001)
-spikerej[1]=quantile(L,.9999)
-spikerej[2]=quantile(R,.9999)
+#this specificies how extreme the signal has to be to count as dropoff or spike
+#NB 14/5/17: noted that these had been prespecified at v extreme values - now use zmultdown
+# and zmultup
+droprej[1]=quantile(L,(1-pnorm(zmultdown)))
+droprej[2]=quantile(R,(1-pnorm(zmultdown)))
+spikerej[1]=quantile(L,pnorm(zmultup))
+spikerej[2]=quantile(R,pnorm(zmultup))
 
 for (i in 1:2){
   if (droprej[i]<1) {droprej[i]=1}#value cannot be 0 or less! Lowest droprej value is 1
@@ -194,8 +245,9 @@ for (i in 1:2){
 #-----------------------------------------------------------
 # epoch the accepted trials into an array
 # This has 4 dimensions; trials,points, L/R, raw/artrej/heartcorr/baselined
+myepoched <- array(0, dim=c(nmarkers,postpoints-prepoints+1,2,4)) #initialising array
 #------------------------------------------------------------------
-myepoched <- array(0, dim=c(nmarkers,postpoints-prepoints+1,2,4))
+
 mybit=matrix(data = NA, nrow = poiendpoints-prepoints, ncol = 2)
 
 for (mym in 1:nmarkers){
@@ -204,9 +256,9 @@ for (mym in 1:nmarkers){
   myepoched[mym,,1,1]=rawdata[index1:index2,2] #L side
   myepoched[mym,,2,1]=rawdata[index1:index2,3] #R side
   #use only data in baseline up to end POI range 
+
   
-  
-  for (i in 1:2){
+  for (i in 1:2){ #same procedure for L then R
     rejpoints<-numeric(0)
     mybit[,i]=myepoched[mym,1:(poiendpoints-prepoints),i,1]
     thisbit=mybit[,i]
@@ -222,23 +274,23 @@ for (mym in 1:nmarkers){
       myepoched[mym,dropoint,i,1]=zmean[i];  #and substitute the mean for this channel
     }
   }
-  timeline=sec[1:(poiendpoints-prepoints)]
-  if (initialdatacheck==1) #set initialdatacheck to zero to avoid plotting
+  timeline=sec[1:(poiendpoints-prepoints)] #time interval in seconds treating start of baseline as zero
+  if (initialdatacheck==1) #if initialdatacheck set to zero you skip plotting each trial
   {
     
     #first plot the old values with no correction
     
-    plot(timeline+premarker,mybit[,1],type="n");
+    plot(timeline+premarker,mybit[,1],type="n"); #add premarker to timeline to get true timings
     lines(timeline+premarker,mybit[,1],col="red")
     lines(timeline+premarker,mybit[,2],col="blue")
     
     #then overplot the corrected values in different colours
     lines(timeline+premarker,myepoched[mym,1:(poiendpoints-prepoints),1,1],col='pink')
     lines(timeline+premarker,myepoched[mym,1:(poiendpoints-prepoints),2,1],col='lightblue')
-    abline(v=4)
+    abline(v=4) #vertical lines show POI
     abline(v=14)
     
-    mytitle=paste(myname, 'Trial:', mym,'Include = ',myinclude[mym]+1);
+    mytitle=paste(mysubname, 'Trial:', mym,'Include = ',myinclude[mym]+1);
     title(mytitle);
     text(0,80,'Red/blue values in POI have been overwritten with mean',cex=.7)
     text(0,90,'2 = included; 1 = pre-excluded, 0 = rejected',cex=.7);
@@ -250,7 +302,7 @@ for (mym in 1:nmarkers){
   
   
 } #next epoch
-
+detach(rawdata) #rawdata not used beyond this point
 #------------------------------------------------------------------
 # Remove deleted epochs (originals in origdata; myepoched updated so only has retained epochs)
 #------------------------------------------------------------------
@@ -417,7 +469,7 @@ if (initialdatacheck4==1){
   lines(timelinelong,Rmean,col='blue')
   lines(timelinelong,(100+LRdiff),col='black')
   text(-5,110,'blue=R\n red=L\n black=(L-R) +100',cex=.75)
-  title(myname)
+  title(mysubname)
   cat ("Press [enter] to continue")
   line <- readline()
 }
