@@ -84,24 +84,24 @@ colnames(rawdata)=c("sec","L","R","marker1","marker2")
 
 #rm(dat,shortdat) #clear original input files from workspace
 
-attach(rawdata) #makes it easier to use variables from dataframe
+#attach(rawdata) #makes it easier to use variables from dataframe
 #------------------------------------------------------------------------
 #brief plot of first 3000 pts to check all OK; range here is arbitrary
 if (briefinspect==1)
 {
-  x=sec[1:3000]
-  y=L[1:3000]
-  z=R[1:3000]
-  w1=marker1[1:3000]
-  w2=marker2[1:3000]
+  x=rawdata$sec[1:3000]
+  y=rawdata$L[1:3000]
+  z=rawdata$R[1:3000]
+  w1=rawdata$marker1[1:3000]
+  w2=rawdata$marker2[1:3000]
   plot(x,y, type="n") #set up plot - doesn't actually plot anything
   lines(x,y,col="red")
   lines(x,z,col="lightblue")
   lines(x,w1)
   lines(x,w2,lty=4)
   text(50,50,'chan 7 marker black, chan 8 marker dotted')
-  
-  line <- readline()
+  cat ("Press [enter] to continue")
+   line <- readline()
   #This should show left (red) and right (blue) channels and some markers in black
   #Both marker channels now shown
   #There is often a spurious marker right at the start
@@ -115,21 +115,23 @@ poiendpoints=poiend*samplingrate
 basepoints=1:-prepoints; #baseline is interval prior to marker
 maxtrials=30; #needed to set dim for storing rejected epochs
 
-----------------------------------------------------------------------
+#----------------------------------------------------------------------
 #Now find markers; place where go from low to high value
 #------------------------------------------------------------------
 
 #markersize=maxmarker-20 #markersize varies with computer? But this should catch all
-markersize=10 #previously set to 80; varies a fair bit, but should not get spurious activity
+#previously set to 80; varies a fair bit, but should not get spurious activity
 #with this setting, as background variation is below 1
+markersize=10 
+
 mylen=nrow(rawdata)
 markerrange=seq(-prepoints:mylen-postpoints);#can't have markers right at start or end
-allmarkerlist<-data.frame(matrix(rep(NA,124),ncol=2)) #will hold markers from both channels, 1 col denotes channel, and other is latency
+allmarkerlist=data.frame(matrix(rep(NA,124),ncol=2)) #will hold markers from both channels, 1 col denotes channel, and other is latency
 thisoffset=0
 for (mychannel in 1:2){
-  marker<-marker1
+  marker<-rawdata$marker1
   startcol<-48
-  if (mychannel==2){marker<-marker2
+  if (mychannel==2){marker<-rawdata$marker2
   startcol<-54} #information about markers will be written back to columns in xls file
   #in range 48-53 for channel 7 and 54 onwards for channel 8
   
@@ -147,12 +149,11 @@ for (mychannel in 1:2){
   
    nmarkers=length(origmarkerlist);
   filelist[mysub,startcol]<-nmarkers
-  filelist[mysub,startcol+1]<-length(spuriousmarkers)
-  filelist[mysub,startcol+2]<-origmarkerlist[1]
+  filelist[mysub,startcol+1]<-0 #will hold N spurious markers
+   filelist[mysub,startcol+2]<-origmarkerlist[1]
   filelist[mysub,startcol+3]<-origmarkerlist[2]
   filelist[mysub,startcol+4]<-origmarkerlist[3]
   filelist[mysub,startcol+5]<-origmarkerlist[3]-origmarkerlist[2]
-  thislen<-length(markerlist)
   allmarkerlist[(1+thisoffset):(thisoffset+nmarkers),1]<-mychannel #record the channel of origin
   allmarkerlist[(1+thisoffset):(thisoffset+nmarkers),2]<-origmarkerlist #record latency of marker
   thisoffset<-thisoffset+nmarkers
@@ -164,7 +165,7 @@ allmarkerlist <- allmarkerlist[order(allmarkerlist$X2),]
 # Identify and remove spurious markers
 #----------------------------------------------------------------------
 #Check that markers are at least 2 s apart
-intervals=c(sec[allmarkerlist$X2],10000)-c(0,sec[allmarkerlist$X2])#distance between markers in seconds
+intervals=c(rawdata$sec[allmarkerlist$X2],10000)-c(0,rawdata$sec[allmarkerlist$X2])#distance between markers in seconds
 intervals=intervals[1:(nrow(allmarkerlist)-1)] #ignore last
 #First and last values will be arbitrarily large; others should be around 40 s but may be longer if
 #recording interrupted
@@ -180,7 +181,7 @@ if (length(spuriousmarkers)>0){
   }
 if (length(spuriousmarkers)==0){
   markerlist=allmarkerlist$X2
-  chanlist<-allmarkerlist$X2
+  chanlist<-allmarkerlist$X1
 }
 
 markerlist<-markerlist[!is.na(markerlist)]
@@ -190,11 +191,13 @@ if(length(markerlist)>30){
   chanlist<-chanlist[2:length(chanlist)]
 }
 thischan<-chanlist[1] #find which marker channel we have selected
-for (i in 1:length(chanlist)){
-  if (chanlist[i]!=thischan) 
+for (myc in 1:length(chanlist)){
+  if (chanlist[myc]!=thischan) 
       {thischan<-9}
 } #any discrepancy in channel of selected markers will be flagged up as 9
-filelist[mysub,startcol+7]<-thischan+6 #marker recorded as channel 7 or 8
+filelist[mysub,55]<-thischan+6 #marker recorded as channel 7 or 8
+filelist[mysub,49]<-length(spuriousmarkers)
+
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
@@ -209,15 +212,12 @@ if (length(myremove)>0)
 }
 nmarkers=length(markerlist)
 
-
-
-
 #------------------------------------------------------------------
 # Settings for initial screening to remove signal dropout
 #------------------------------------------------------------------
 interpolatebad=1;#set to 1 to replace brief dropout/spiking with mean value for that channel
 #number specified here is max number of bad datapoints corrected for
-zmultdown=2.5;# lower cutoff for down, because floor for dropoff
+zmultdown=3.26;# cutoff for dropout
 #These values may need adjusting individually to ensure good retained and bad lost
 zmultup=3.26;
 #these zvalues identify channels where dropout or spiking because values
@@ -233,13 +233,13 @@ intmax=100*(1+round(mymax/100))
 #this specificies how extreme the signal has to be to count as dropoff or spike
 #NB 14/5/17: noted that these had been prespecified at v extreme values - now use zmultdown
 # and zmultup
-droprej[1]=quantile(L,(1-pnorm(zmultdown)))
-droprej[2]=quantile(R,(1-pnorm(zmultdown)))
-spikerej[1]=quantile(L,pnorm(zmultup))
-spikerej[2]=quantile(R,pnorm(zmultup))
+droprej[1]=quantile(rawdata$L,(1-pnorm(zmultdown)))
+droprej[2]=quantile(rawdata$R,(1-pnorm(zmultdown)))
+spikerej[1]=quantile(rawdata$L,pnorm(zmultup))
+spikerej[2]=quantile(rawdata$R,pnorm(zmultup))
 
-for (i in 1:2){
-  if (droprej[i]<1) {droprej[i]=1}#value cannot be 0 or less! Lowest droprej value is 1
+for (myd in 1:2){
+  if (droprej[myd]<1) {droprej[myd]=1}#value cannot be 0 or less! Lowest droprej value is 1
 }#droprej gives lower limit of signal for L and R channels below which rejected
 
 #-----------------------------------------------------------
@@ -274,7 +274,7 @@ for (mym in 1:nmarkers){
       myepoched[mym,dropoint,i,1]=zmean[i];  #and substitute the mean for this channel
     }
   }
-  timeline=sec[1:(poiendpoints-prepoints)] #time interval in seconds treating start of baseline as zero
+  timeline=rawdata$sec[1:(poiendpoints-prepoints)] #time interval in seconds treating start of baseline as zero
   if (initialdatacheck==1) #if initialdatacheck set to zero you skip plotting each trial
   {
     
@@ -296,37 +296,40 @@ for (mym in 1:nmarkers){
     text(0,90,'2 = included; 1 = pre-excluded, 0 = rejected',cex=.7);
     cat ("Press [enter] to continue")
     line <- readline()
-    dev.off #close figure here?
+    dev.off() #close figure here?
     
   } #end of if statement
   
   
 } #next epoch
-detach(rawdata) #rawdata not used beyond this point
+#detach(rawdata) #rawdata not used beyond this point
 #------------------------------------------------------------------
 # Remove deleted epochs (originals in origdata; myepoched updated so only has retained epochs)
 #------------------------------------------------------------------
 
 keepmarkers=which(myinclude>0)
-
-
 origdata=myepoched #keep this so can reconstruct
 myepoched=myepoched[keepmarkers,,,] #file with only accepted epochs
-nmarkers2=length(keepmarkers)
+nmarkers2=length(keepmarkers) #how many analysed epochs
 #------------------------------------------------------------------
 # Normalise to mean of 100 (see Deppe et al, 2004)
 # Multiply by 100 and divide by overall mean value
 # ensures results are independent of angle of insonation
 #------------------------------------------------------------------
-meanL=mean(myepoched[,,1,1])
-meanR=mean(myepoched[,,2,1])
-myepoched[,,1,1]=100*myepoched[,,1,1]/meanL
-myepoched[,,2,1]=100*myepoched[,,2,1]/meanR
+meanL<-mean(myepoched[,,1,1],na.rm=TRUE) #to allow for na if last trial stops at end of POI
+meanR<-mean(myepoched[,,2,1],na.rm=TRUE)
+myepoched[,,1,1]<-100*myepoched[,,1,1]/meanL
+myepoched[,,2,1]<-100*myepoched[,,2,1]/meanR
+
+# NAs at the end of last trial (due to premature stopping recording) can mess up 
+# the script, so just substitute 100. These pts don't affect the LI as they are after POI
+nabit<-which(is.na(myepoched))
+myepoched[nabit]<-100
+
 #NB. don't use zscore: need to retain variance difference
 # so make mean 100, but preserve variance
 if (initialdatacheck1==1){
-  for (mym in 1:nmarkers2
-  ){
+  for (mym in 1:nmarkers2){
     plot(timeline+premarker,myepoched[mym,1:650,1,1],type="n")
     lines(timeline+premarker,myepoched[mym,1:(poiendpoints-prepoints),1,1],col='pink')
     lines(timeline+premarker,myepoched[mym,1:(poiendpoints-prepoints),2,1],col='lightblue')
@@ -461,7 +464,7 @@ mylatdir=latdir[lateralised+2]
 
 if (initialdatacheck4==1){
   #   plot average result
-  timelinelong=sec[1:(postmarker*25-prepoints+1)]+premarker
+  timelinelong=rawdata$sec[1:(postmarker*25-prepoints+1)]+premarker
   plot(timelinelong,Lmean, type="n") #set up plot - doesn't actually plot anything
   
   #  plot(timelinelong,LRdiff,type="n")
@@ -476,7 +479,7 @@ if (initialdatacheck4==1){
 
 
 
-filelist[mysub,34:40]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised)
+filelist[mysub,34:41]=c(lateralised,myN,myLI,mylatency,myse,lowCI,hiCI,lateralised)
 write.xlsx(filelist, "myfilelist_R2.xlsx",row.names=FALSE)
 
 sprintf('my lateralised is %d', lateralised)
