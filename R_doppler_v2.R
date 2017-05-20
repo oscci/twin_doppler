@@ -7,17 +7,33 @@
 # which is typically on channel 7
 # 20/5/17 Updated to read input from old format NLA files
 
+#NB Program reads lists of participants and details of preexcluded trials from xlsx
+# sheet, and then writes results.
+# Check that these are correct (see around line 55). 
+# After first run, it makes sense to read and write
+# from same file, so that results of analysis cumulate
+
 #To Do: allow user to override automated artrej in first stage in either direciton
-# Make rejection codes more transparent
+# Make rejection codes more transparent: done
+# Also need to 
+# c) Finalise columns in xls file to write to, including column indicating marker
+# d) incorporate Alex change that allows user to override automated artrej in first stage in either direction
+
+#install.packages(c("xlsx","dplyr"))
+library(xlsx)
+require(dplyr)
+
+#------------------------------------------------------
+#specify directories for reading and writing
+#------------------------------------------------------
 
 #setwd("C:/Users/dbishop/Dropbox/R/DB_otherscripts/doppler") #set working directory
 setwd("~/Dropbox/R/DB_otherscripts/Doppler")
-NLAdir<-("~/Dropbox/R/DB_otherscripts/Doppler/Doppler2/")
+procdir<-("~/Dropbox/R/DB_otherscripts/Doppler/Doppler_processed/")
+NLAdir<-("~/Dropbox/R/DB_otherscripts/Doppler/Doppler_raw/")
+expdir<-NLAdir #all raw files now together in one directory
 #setwd("C:/Users/wilsona/Dropbox/Doppler")
-
-#install.packages(c("readxl","dplyr"))
-library(xlsx)
-require(dplyr)
+#------------------------------------------------------
 
 #Timings for Freezefoot. The marker occurs at the start of the cartoon
 # There is 12s of cartoon, which acts as baseline
@@ -46,7 +62,13 @@ initialdatacheck4=1; # set to 1 to plot average for each subject
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
-filelist <- read.xlsx("myfilelist_R2.xlsx",sheetName="Sheet1")
+sourcefilename<-'Twins Doppler_behavioural exclusion_with R Laterality statistics.xlsx'
+outfilename<-'Twins_Doppler_processed.txt' #easier to write to tab sep text than xls
+outfileloc<-paste(procdir,outfilename,sep='')
+sourcefileloc<-paste(procdir,sourcefilename,sep='')
+filelist <- read.xlsx(sourcefileloc,sheetName="Sheet1")
+filelist$Filename<-as.character(filelist$Filename) #to unfactor this column
+filelist$Comment<-as.character(filelist$Comment) 
 # This is an xls file that has list of files, include/exclude, and flag for each trial
 # specifying whether it is included (or excluded because procedural error, 
 # such as talking during silent period, or not talking during talk period)
@@ -55,14 +77,19 @@ filelist <- read.xlsx("myfilelist_R2.xlsx",sheetName="Sheet1")
 
 
 #######################################################################
-mysub=3
-markerchannel<-7
+mysub=8 #Row of xls file used to read and write data for this participant
+markerchannel<-filelist$marker_channel[mysub]
 #select file here or have loop
 ########################################################################
+
+mygotfile<-0
 #Read NLA files
 if (mysub<15){
-  myname<-paste(filelist[mysub,3],".TW0",sep='')
-  myfileloc<-paste(NLAdir,filelist[mysub,3],".TW0",sep="")
+  myname<-paste(filelist$Filename[mysub],".TW0",sep='')
+  myfileloc<-paste(NLAdir,myname,sep='')
+
+  if (file.exists(myfileloc)){
+    mygotfile<-1
   f <- file(myfileloc, open="rb",blocking=TRUE)  #open connection to read binary data
   longdat<-readBin(f,what='integer',n=900000,size=2)#n can be larger than file size
   closeAllConnections()   
@@ -81,14 +108,21 @@ for (j in 1:Ncycle){
 wantcols=c(4,1,2,3) #first col will be overwritten
 #for NLA files, we will have csec, L, R and marker, with marker in ch 3
 }
-
+}
+#read exp file
 if (mysub>14){
-myname<-paste(filelist[mysub,2],".exp",sep="")
-
+myname<-paste(filelist[mysub,3],".exp",sep="")
+myfileloc<-paste(expir,filelist[mysub,3],".TW0",sep="")
 #NB. can double click on exp files to open in word and see header with ID and date/time
-dat <- read.table(myname, skip = 6,  header =FALSE, sep ='\t') #read .exp file in to table
+if (file.exists(myfileloc)){
+  mygotfile<-1
+dat <- read.table(myfileloc, skip = 6,  header =FALSE, sep ='\t') #read .exp file in to table
 wantcols=c(2,3,4,markerchannel) #csec, L, R,marker #select columns of interest and put in shortdat
 }
+}
+mycomment<-'Raw data file not found'
+if(mygotfile==1){ #ignore all processing if no file found
+  mycomment<-filelist[mysub,34]
 shortdat=data.frame(dat[,wantcols])
 colnames(shortdat)=c("csec","L","R","marker")
 
@@ -228,7 +262,6 @@ for (mym in 1:nmarkers){
   myepoched[mym,,2,1]=rawdata[index1:index2,3] #R side
   #use only data in baseline up to end POI range 
   
-  
   for (i in 1:2){
     rejpoints<-numeric(0)
     mybit[,i]=myepoched[mym,1:(poiendpoints-prepoints),i,1]
@@ -251,7 +284,7 @@ for (mym in 1:nmarkers){
     
     #first plot the old values with no correction
     
-    plot(timeline+premarker,mybit[,1],type="n");
+    plot(timeline+premarker,mybit[,1],type="n",ylab='Amplitude',xlab='Time (s)');
     lines(timeline+premarker,mybit[,1],col="red")
     lines(timeline+premarker,mybit[,2],col="blue")
     
@@ -261,10 +294,12 @@ for (mym in 1:nmarkers){
     abline(v=4)
     abline(v=14)
     
-    mytitle=paste(myname, 'Trial:', mym,'Include = ',myinclude[mym]+1);
+    mytitle=paste(myname, 'Trial:', mym,'Include = ',myinclude[mym]);
     title(mytitle);
-    text(0,80,'Red/blue values in POI have been overwritten with mean',cex=.7)
-    text(0,90,'2 = included; 1 = pre-excluded, 0 = rejected',cex=.7);
+    location1<-range(mybit)[2]-20
+    location2<-range(mybit)[2]-80
+    text(0,location1,'Red/blue values in POI have been overwritten with mean',cex=.7)
+    text(0,location2,'1 = included; 0 = pre-excluded, -1 = rejected',cex=.7);
     cat ("Press [enter] to continue")
     line <- readline()
     dev.off #close figure here?
@@ -415,16 +450,16 @@ if (-mymin>mymax){
 mytimepeak=first(which(LRdiff==mylatpeak))
 mylatency=(mytimepeak-baseoffset)/samplingrate #need to subtract points for baseline
 mypeakrange=seq(mytimepeak-25,mytimepeak+25) #actual points ie includes baseline
-myLI=mean(LRdiff[mypeakrange])
+myLI=as.numeric(format(mean(LRdiff[mypeakrange]),digits=3))
 indLI=numeric(0)#initialise null vector
 myN=length(finalepochs)
 for (m in 1:myN){
   indLI=c(indLI,mean(finalset[m,mypeakrange,1]-finalset[m,mypeakrange,2]))
 }
 mysd=sd(indLI)
-myse=mysd/sqrt(myN)
-lowCI=myLI-myside*myse*1.96
-hiCI=myLI+myside*myse*1.96
+myse=as.numeric(format(mysd/sqrt(myN),digits=3))
+lowCI=as.numeric(format(myLI-myside*myse*1.96,digits=3))
+hiCI=as.numeric(format(myLI+myside*myse*1.96,digits=3))
 lateralised=myside
 if((myside*lowCI)<0) {lateralised=0}
 latdir=c("R","bilat","L")
@@ -433,21 +468,26 @@ mylatdir=latdir[lateralised+2]
 if (initialdatacheck4==1){
   #   plot average result
   timelinelong=rawdata$sec[1:(postmarker*25-prepoints+1)]+premarker
-  plot(timelinelong,Lmean, type="n") #set up plot - doesn't actually plot anything
+  plot(timelinelong,Lmean, type="n",ylab='mean blood flow',xlab='time(s)',ylim=c(90,110)) #set up plot - doesn't actually plot anything
   
   #  plot(timelinelong,LRdiff,type="n")
   lines(timelinelong,Lmean,col='red')
   lines(timelinelong,Rmean,col='blue')
   lines(timelinelong,(100+LRdiff),col='black')
-  text(-5,110,'blue=R\n red=L\n black=(L-R) +100',cex=.75)
+  text(-5,105,'blue=R\n red=L\n black=(L-R) +100',cex=.75)
   title(myname)
   cat ("Press [enter] to continue")
   line <- readline()
 }
 
+filelist[mysub,35:41]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised)
 
+print(paste("N accepted epochs = ",myN))
+print(paste("LI =",myLI,": 95% CI =",lowCI,'to',hiCI))
+print(paste("Categorical laterality =",mylatdir))
+print(paste("Latency of peak = ",mylatency,'s'))
 
-filelist[mysub,34:40]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised)
-write.xlsx(filelist, "myfilelist_R2.xlsx",row.names=FALSE)
+}
+filelist[mysub,34]<-mycomment
+write.table(filelist, outfileloc, sep="\t",row.names=FALSE)
 
-sprintf('my lateralised is %d', lateralised)
