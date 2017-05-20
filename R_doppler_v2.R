@@ -9,15 +9,18 @@
 
 #NB Program reads lists of participants and details of preexcluded trials from xlsx
 # sheet, and then writes results.
-# Check that these are correct (see around line 55). 
+# Check that these files are correct (see around line 55). 
 # After first run, it makes sense to read and write
-# from same file, so that results of analysis cumulate
+# from same file, so that results of analysis cumulate. Currently set to do this
 
-#To Do: allow user to override automated artrej in first stage in either direciton
-# Make rejection codes more transparent: done
-# Also need to 
-# c) Finalise columns in xls file to write to, including column indicating marker
-# d) incorporate Alex change that allows user to override automated artrej in first stage in either direction
+#To Do: 
+# DONE: Make rejection codes more transparent
+# DONE: Finalise columns in xls file to write to, including column indicating marker: 
+# DONE incorporate Alex change that allows user to override automated artrej in first stage in either direction
+# DONE: Add split half LI values
+# DONE Add user comment to output file
+# DONE: adapt to run in loop
+# PARTLY DONE: add error message if dodgy markers
 
 #install.packages(c("xlsx","dplyr"))
 library(xlsx)
@@ -50,9 +53,11 @@ extremelo=60;
 
 #------------------------------------------------------------------
 # Toggle these initialdatacheck values to view aspects of analysis
-# Once satisfied, set all to zero for fast analysis
+# Once satisfied, can set all to zero for fast analysis
+# But it is recommended to inspect all trials and if need be manually override
+# automated rejection
 #------------------------------------------------------------------
-briefinspect=1; #set to 1 to see a sample of the file to check markers etc are there
+briefinspect=0; #set to 1 to see a sample of the file to check markers etc are there
 initialdatacheck=1; #set to 1 to view raw data for each epoch
 initialdatacheck1=0; # set to 1 to view epochs after normalisation
 initialdatacheck2=0; #set to 1 to view epochs after heartbeat Correction
@@ -62,11 +67,14 @@ initialdatacheck4=1; # set to 1 to plot average for each subject
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
-sourcefilename<-'Twins Doppler_behavioural exclusion_with R Laterality statistics.xlsx'
-outfilename<-'Twins_Doppler_processed.txt' #easier to write to tab sep text than xls
+#sourcefilename<-'Twins Doppler_behavioural exclusion_with R Laterality statistics.xlsx'
+outfilename<-'Twins_Doppler_processed.xlsx' #easier to write to tab sep text than xls
 outfileloc<-paste(procdir,outfilename,sep='')
-sourcefileloc<-paste(procdir,sourcefilename,sep='')
-filelist <- read.xlsx(sourcefileloc,sheetName="Sheet1")
+#sourcefileloc<-paste(procdir,sourcefilename,sep='')
+sourcefileloc<-outfileloc #now just reading and over-writing to same file
+#to get back to original data, need to read in orignal source file
+
+filelist <- read.xlsx(sourcefileloc,sheetIndex=1)
 filelist$Filename<-as.character(filelist$Filename) #to unfactor this column
 filelist$Comment<-as.character(filelist$Comment) 
 # This is an xls file that has list of files, include/exclude, and flag for each trial
@@ -77,11 +85,12 @@ filelist$Comment<-as.character(filelist$Comment)
 
 
 #######################################################################
-mysub=8 #Row of xls file used to read and write data for this participant
-markerchannel<-filelist$marker_channel[mysub]
+mysub=9 #Row of xls file used to read and write data for this participant
+
 #select file here or have loop
 ########################################################################
-
+for (mysub in 21:30){
+  markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
 if (mysub<15){
@@ -112,7 +121,7 @@ wantcols=c(4,1,2,3) #first col will be overwritten
 #read exp file
 if (mysub>14){
 myname<-paste(filelist[mysub,3],".exp",sep="")
-myfileloc<-paste(expir,filelist[mysub,3],".TW0",sep="")
+myfileloc<-paste(NLAdir,myname,sep="")
 #NB. can double click on exp files to open in word and see header with ID and date/time
 if (file.exists(myfileloc)){
   mygotfile<-1
@@ -207,10 +216,10 @@ if(nmarkers==(maxtrials+1))
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
-myinclude=rep(1,maxtrials) #can default to include all if no data on trials in the excel file
+myinclude=rep(1,length(markerlist)) #can default to include all if no data on trials in the excel file
 if (ncol(filelist)>3){
   
-  myinclude=filelist[mysub,4:(3+maxtrials)] 
+  myinclude=filelist[mysub,4:(3+length(markerlist))] 
 }
 myremove=which(myinclude==9)#9 indicates trial not given
 if (length(myremove)>0)
@@ -300,8 +309,15 @@ for (mym in 1:nmarkers){
     location2<-range(mybit)[2]-80
     text(0,location1,'Red/blue values in POI have been overwritten with mean',cex=.7)
     text(0,location2,'1 = included; 0 = pre-excluded, -1 = rejected',cex=.7);
-    cat ("Press [enter] to continue")
-    line <- readline()
+    cat("Press 9 for manual exclusion. Press 8 to retain excluded (-1). To retain current inclusion/exclusion status, press 1")
+    myoverride <- as.integer(readline(prompt = ""))
+    if(myoverride>1){ #This is not ideal - will crash if just 'return'!
+    if (myoverride==9){
+      myinclude[mym]=-1}
+    if (myoverride==8){
+      myinclude[mym]=1}
+    mycomment<-paste(filelist$Comment[mysub],'. Manual override',myoverride,'trial',mym)
+    filelist$Comment[mysub] <-mycomment}
     dev.off #close figure here?
     
   } #end of if statement
@@ -313,9 +329,9 @@ for (mym in 1:nmarkers){
 # Remove deleted epochs (originals in origdata; myepoched updated so only has retained epochs)
 #------------------------------------------------------------------
 
-keepmarkers=which(myinclude>0)
+keepmarkers=which(myinclude==1)
 
-
+if(length(keepmarkers)>7){
 origdata=myepoched #keep this so can reconstruct
 myepoched=myepoched[keepmarkers,,,] #file with only accepted epochs
 nmarkers2=length(keepmarkers)
@@ -435,6 +451,14 @@ finalset=myepoched[finalepochs,,1:2,3]
 Lmean <- apply(finalset[,,1], c(2), mean)
 Rmean <- apply(finalset[,,2],c(2),mean)
 LRdiff=Lmean-Rmean
+odds<-seq(from=1,to=dim(finalset)[1],by=2)
+evens<-seq(from=2,to=dim(finalset)[1],by=2)
+Lmeanodd<-apply(finalset[odds,,1],c(2),mean)
+Lmeaneven<-apply(finalset[evens,,1],c(2),mean)
+Rmeanodd<-apply(finalset[odds,,2],c(2),mean)
+Rmeaneven<-apply(finalset[evens,,2],c(2),mean)
+LRdiffodd<-Lmeanodd-Rmeanodd
+LRdiffeven<-Lmeaneven-Rmeaneven
 
 #Compute LI etc
 baseoffset=-premarker*samplingrate
@@ -451,6 +475,8 @@ mytimepeak=first(which(LRdiff==mylatpeak))
 mylatency=(mytimepeak-baseoffset)/samplingrate #need to subtract points for baseline
 mypeakrange=seq(mytimepeak-25,mytimepeak+25) #actual points ie includes baseline
 myLI=as.numeric(format(mean(LRdiff[mypeakrange]),digits=3))
+myLIeven=mean(LRdiffeven[mypeakrange]) #NB LI for even and odd computed at same peak as full LI
+myLIodd=mean(LRdiffodd[mypeakrange])
 indLI=numeric(0)#initialise null vector
 myN=length(finalepochs)
 for (m in 1:myN){
@@ -464,6 +490,11 @@ lateralised=myside
 if((myside*lowCI)<0) {lateralised=0}
 latdir=c("R","bilat","L")
 mylatdir=latdir[lateralised+2]
+
+#LIs for odd/even split half
+for (oe in 1:2){
+  
+}
 
 if (initialdatacheck4==1){
   #   plot average result
@@ -480,7 +511,7 @@ if (initialdatacheck4==1){
   line <- readline()
 }
 
-filelist[mysub,35:41]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised)
+filelist[mysub,35:43]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised,myLIodd,myLIeven)
 
 print(paste("N accepted epochs = ",myN))
 print(paste("LI =",myLI,": 95% CI =",lowCI,'to',hiCI))
@@ -488,6 +519,25 @@ print(paste("Categorical laterality =",mylatdir))
 print(paste("Latency of peak = ",mylatency,'s'))
 
 }
+}
 filelist[mysub,34]<-mycomment
-write.table(filelist, outfileloc, sep="\t",row.names=FALSE)
+if (length(markerlist)<30)
+{myaddcomment<-paste('Found only',length(markerlist),'markers.')}
+else if (length(keepmarkers)<8)
+  {myaddcomment<-paste('Omitted file: ',length(keepmarkers),'accepted epochs')}
+
+else {
+cat("If you want to add short comment to file, write it here (then wait to continue")
+
+myaddcomment <- readline(prompt = "")
+}
+  mycomment<-paste(filelist$Comment[mysub],'.',myaddcomment)
+  filelist$Comment[mysub] <-mycomment
+
+}
+
+  #write.xlsx is fussy about pathname and does not like ~ in path, hence path.expand here
+outfileloc<-paste(path.expand(procdir),outfilename,sep='')
+#write.table(filelist, outfileloc, sep="\t",row.names=FALSE) #alternative for tab-sep
+write.xlsx(filelist, outfileloc,sheetName='data_summary',row.names=FALSE)
 
