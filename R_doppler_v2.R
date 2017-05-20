@@ -1,15 +1,18 @@
 #R_doppler_analyse
-#This version corrected 19th May to use marker that coincides with start of trial
-# which is typically on channel 7
 
 #Because this program waits for input from user, it only runs properly if you run from source, 
 # which you can do with Ctrl+Shift+S
+
+#This version corrected 19th May to use marker that coincides with start of trial
+# which is typically on channel 7
+# 20/5/17 Updated to read input from old format NLA files
 
 #To Do: allow user to override automated artrej in first stage in either direciton
 # Make rejection codes more transparent
 
 #setwd("C:/Users/dbishop/Dropbox/R/DB_otherscripts/doppler") #set working directory
 setwd("~/Dropbox/R/DB_otherscripts/Doppler")
+NLAdir<-("~/Dropbox/R/DB_otherscripts/Doppler/Doppler2/")
 #setwd("C:/Users/wilsona/Dropbox/Doppler")
 
 #install.packages(c("readxl","dplyr"))
@@ -52,18 +55,40 @@ filelist <- read.xlsx("myfilelist_R2.xlsx",sheetName="Sheet1")
 
 
 #######################################################################
-mysub=193
+mysub=3
 markerchannel<-7
 #select file here or have loop
 ########################################################################
+#Read NLA files
+if (mysub<15){
+  myname<-paste(filelist[mysub,3],".TW0",sep='')
+  myfileloc<-paste(NLAdir,filelist[mysub,3],".TW0",sep="")
+  f <- file(myfileloc, open="rb",blocking=TRUE)  #open connection to read binary data
+  longdat<-readBin(f,what='integer',n=900000,size=2)#n can be larger than file size
+  closeAllConnections()   
+  blk = 64; # number of single channel samples in a row
+  ch = 6; # number of channels
+  cycle = blk*ch
+  Ncycle = length(longdat)/cycle 
 
+for (j in 1:Ncycle){
+  j1=blk*6*(j-1)+1
+  j2=j*blk*6
+  mychunk<-matrix(longdat[j1:j2],ncol=6)
+  if(j==1){dat<-mychunk}
+  if(j>1){dat<-rbind(dat,mychunk)}
+ }
+wantcols=c(4,1,2,3) #first col will be overwritten
+#for NLA files, we will have csec, L, R and marker, with marker in ch 3
+}
 
-myname=paste(filelist[mysub,2],".exp",sep="")
+if (mysub>14){
+myname<-paste(filelist[mysub,2],".exp",sep="")
 
 #NB. can double click on exp files to open in word and see header with ID and date/time
 dat <- read.table(myname, skip = 6,  header =FALSE, sep ='\t') #read .exp file in to table
-
 wantcols=c(2,3,4,markerchannel) #csec, L, R,marker #select columns of interest and put in shortdat
+}
 shortdat=data.frame(dat[,wantcols])
 colnames(shortdat)=c("csec","L","R","marker")
 
@@ -103,13 +128,14 @@ maxtrials=30; #needed to set dim for storing rejected epochs
 #Now find markers; place where go from low to high value
 #------------------------------------------------------------------
 mylen=nrow(rawdata);
-markerplus=c(0 ,marker);
-markerchan=c(marker,0); #create vectors with offset of one
+markerplus=c(0 ,rawdata$marker);
+markerchan=c(rawdata$marker,0); #create vectors with offset of one
 markersub=markerplus-markerchan;#start of marker indicated by large difference in level
 
-maxmarker=max(marker)
+maxmarker<-max(rawdata$marker)
+meanmarker<-mean(rawdata$marker)
 #markersize=maxmarker-20 #markersize varies with computer? But this should catch all
-markersize=80
+markersize<-meanmarker+5*sd(rawdata$marker)
 markerrange=seq(-prepoints:mylen-postpoints);#can't have markers right at start or end
 origmarkerlist=which(markersub>markersize)
 while (origmarkerlist[1]<(-prepoints)){origmarkerlist<-origmarkerlist[2:length(origmarkerlist)]}
@@ -142,6 +168,8 @@ if (length(spuriousmarkers)>0){
   }
 if (length(spuriousmarkers)==0){markerlist=origmarkerlist}
 nmarkers=length(markerlist);
+if(nmarkers==(maxtrials+1))
+  {markerlist<-markerlist[2:length(markerlist)]}#strip off initial marker if one extra
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
@@ -177,10 +205,10 @@ zmean=rep(0,2)
 mymax=max(rawdata[,2:3])
 intmax=100*(1+round(mymax/100))
 
-droprej[1]=quantile(L,.0001)
-droprej[2]=quantile(R,.0001)
-spikerej[1]=quantile(L,.9999)
-spikerej[2]=quantile(R,.9999)
+droprej[1]=quantile(rawdata$L,.0001)
+droprej[2]=quantile(rawdata$R,.0001)
+spikerej[1]=quantile(rawdata$L,.9999)
+spikerej[2]=quantile(rawdata$R,.9999)
 
 for (i in 1:2){
   if (droprej[i]<1) {droprej[i]=1}#value cannot be 0 or less! Lowest droprej value is 1
