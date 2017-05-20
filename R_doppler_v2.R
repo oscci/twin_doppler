@@ -89,7 +89,7 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
-for (mysub in 21:30){
+for (mysub in 49:50){
   markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
