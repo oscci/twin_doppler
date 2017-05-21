@@ -2,6 +2,15 @@
 
 #Because this program waits for input from user, it only runs properly if you run from source, 
 # which you can do with Ctrl+Shift+S
+#------------------------------------------------------------------------------------------
+#IMPORTANT: You can now run several files through a loop. But the program is not crashproof,
+#and will crash if it encounters odd files. When this happens, make sure you run the last 2
+#lines to ensure you save the results from files that run successfully.
+#The program also gives the opportunity to comment on any features of files that are notable
+#as you go through, by typing in the console. These comments will be stored in the xls file;
+#You can also add comments there manually.
+#------------------------------------------------------------------------------------------
+
 
 #This version corrected 19th May to use marker that coincides with start of trial
 # which is typically on channel 7
