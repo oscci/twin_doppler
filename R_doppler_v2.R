@@ -10,6 +10,9 @@
 #as you go through, by typing in the console. These comments will be stored in the xls file;
 #You can also add comments there manually.
 #------------------------------------------------------------------------------------------
+# Note to self: earlier problems because some columms in filelist were read in
+# as factors. Can use str(filelist) to see status of all column variables
+#------------------------------------------------------------------------------------------
 
 
 #This version corrected 19th May to use marker that coincides with start of trial
@@ -98,7 +101,7 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
-for (mysub in 49:50){
+for (mysub in 52:52){
   markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
@@ -224,11 +227,11 @@ if(nmarkers==(maxtrials+1))
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
-myinclude=rep(1,length(markerlist)) #can default to include all if no data on trials in the excel file
-if (ncol(filelist)>3){
-  
-  myinclude=filelist[mysub,4:(3+length(markerlist))] 
-}
+
+myinclude=filelist[mysub,4:(3+length(markerlist))]
+#myinclude=as.numeric(filelist)
+#need as numeric to prevent it being a data frame, which creates problems later
+
 myremove=which(myinclude==9)#9 indicates trial not given
 if (length(myremove)>0)
 { markerlist=markerlist[-myremove]
@@ -251,8 +254,8 @@ zmultup=3.26;
 #-----------------------------------------------------------
 # identify extreme values; can also check each epoch visually
 #------------------------------------------------------------------
-droprej=rep(0,2) ;spikerej=droprej
-zmean=rep(0,2)
+droprej=rep(0,2) ;spikerej=droprej #initialise spikerej and droprej with zero
+zmean=rep(0,2) #initialise zmean
 mymax=max(rawdata[,2:3])
 intmax=100*(1+round(mymax/100))
 
@@ -519,7 +522,7 @@ if (initialdatacheck4==1){
   line <- readline()
 }
 
-filelist[mysub,35:43]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised,myLIodd,myLIeven)
+filelist[mysub,35:44]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised,myLIodd,myLIeven,length(origmarkerlist))
 
 print(paste("N accepted epochs = ",myN))
 print(paste("LI =",myLI,": 95% CI =",lowCI,'to',hiCI))
