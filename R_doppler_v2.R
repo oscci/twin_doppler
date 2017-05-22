@@ -208,14 +208,13 @@ intervals=intervals[1:(length(origmarkerlist)-1)] #ignore last
 #recording interrupted
 #Shorter intervals indicate there have been spurious markers
 
-spuriousmarkers=which(intervals<13) #in fact the short ones are the ones we want!
+spuriousmarkers=which(intervals<13) #we will discard short markers
 #brief interval  is duration of video
-# retain markers with short interval 
+# discard markers with short interval 
 if (length(spuriousmarkers)>0){
   spuriousmarkers=c(spuriousmarkers,length(origmarkerlist))
-  markerlist=origmarkerlist[spuriousmarkers]#keep first and those with index of spurious marker
+  markerlist=origmarkerlist[-spuriousmarkers]#keep first and discard those with index of spurious marker
   
-  #markerlist=origmarkerlist[-spuriousmarkers]#alternative:excluding those with short interval
   #  markerlist=markerlist[2:length(markerlist)]
   }
 if (length(spuriousmarkers)==0){markerlist=origmarkerlist}
