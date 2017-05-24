@@ -101,7 +101,7 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
-for (mysub in 52:52){
+for (mysub in 350:351){
   markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
@@ -193,6 +193,9 @@ meanmarker<-mean(rawdata$marker)
 markersize<-meanmarker+5*sd(rawdata$marker)
 markerrange=seq(-prepoints:mylen-postpoints);#can't have markers right at start or end
 origmarkerlist=which(markersub>markersize)
+if (markerchannel==8){ #marker 8 corresponds to start of video.
+  origmarkerlist=origmarkerlist-prepoints;#need to subtract prepoints (-ve value, so add in effect)
+}
 while (origmarkerlist[1]<(-prepoints)){origmarkerlist<-origmarkerlist[2:length(origmarkerlist)]}
 # strip out any initial markers occuring before 1st possible baseline
 while(origmarkerlist[length(origmarkerlist)]>(mylen-postpoints))
