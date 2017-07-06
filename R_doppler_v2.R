@@ -1,4 +1,8 @@
+<<<<<<< HEAD
 #R_doppler_analyse 
+=======
+#R_doppler_analyse
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 
 #Because this program waits for input from user, it only runs properly if you run from source, 
 # which you can do with Ctrl+Shift+S
@@ -18,7 +22,10 @@
 #This version corrected 19th May to use marker that coincides with start of trial
 # which is typically on channel 7
 # 20/5/17 Updated to read input from old format NLA files
+<<<<<<< HEAD
 # 6/7/17 updated to write raw Lmean and Rmean data to long form file
+=======
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 
 #NB Program reads lists of participants and details of preexcluded trials from xlsx
 # sheet, and then writes results.
@@ -60,8 +67,13 @@ postmarker=18;#times in seconds defining end of epoch
 poistart=4;#period of interest start in secs (ie after ? card)
 poiend=14;#period of interest end in secs
 baselinecorrect=1
+<<<<<<< HEAD
 extremehi=160;#define values for rejecting bad epochs
 extremelo=40;
+=======
+extremehi=140;#define values for rejecting bad epochs
+extremelo=60;
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 
 
 #------------------------------------------------------------------
@@ -76,11 +88,15 @@ initialdatacheck1=0; # set to 1 to view epochs after normalisation
 initialdatacheck2=0; #set to 1 to view epochs after heartbeat Correction
 initialdatacheck3=0; # set to 1 to visualise after baseline correction
 initialdatacheck4=1; # set to 1 to plot average for each subject
+<<<<<<< HEAD
 #-----------------------------------------------------
 #read in a file for raw data for L and R averaged channels in long form.
 #This has 4 columns: ID, side, time and value. 
 longfile<-paste(procdir,'longrawDopplermeans.csv',sep='')
 mymeanLR <- read.csv(longfile)
+=======
+
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
@@ -106,7 +122,11 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
+<<<<<<< HEAD
 for (mysub in 101:102){
+=======
+for (mysub in 350:351){
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
   markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
@@ -307,8 +327,11 @@ for (mym in 1:nmarkers){
     }
   }
   timeline=rawdata$sec[1:(poiendpoints-prepoints)]
+<<<<<<< HEAD
   initialdatacheck<-1 #default is to show initial data check
   if(filelist$manual_changes[mysub]==0){initialdatacheck=0}
+=======
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
   if (initialdatacheck==1) #set initialdatacheck to zero to avoid plotting
   {
     
@@ -332,15 +355,22 @@ for (mym in 1:nmarkers){
     text(0,location2,'1 = included; 0 = pre-excluded, -1 = rejected',cex=.7);
     cat("Press 9 for manual exclusion. Press 8 to retain excluded (-1). To retain current inclusion/exclusion status, press 1")
     myoverride <- as.integer(readline(prompt = ""))
+<<<<<<< HEAD
     if(is.na(myoverride)){myoverride<-1}
+=======
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
     if(myoverride>1){ #This is not ideal - will crash if just 'return'!
     if (myoverride==9){
       myinclude[mym]=-1}
     if (myoverride==8){
       myinclude[mym]=1}
     mycomment<-paste(filelist$Comment[mysub],'. Manual override',myoverride,'trial',mym)
+<<<<<<< HEAD
     filelist$Comment[mysub] <-mycomment
     }
+=======
+    filelist$Comment[mysub] <-mycomment}
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
     dev.off #close figure here?
     
   } #end of if statement
@@ -465,10 +495,14 @@ for (mym in 1:nmarkers2){
   }
 }
 finalepochs=which(keepepoch==1)
+<<<<<<< HEAD
 thisexclude<-nmarkers2-length(finalepochs)
 if (thisexclude>0){
 mycomment<-paste(filelist$Comment[mysub],thisexclude,'trials rejected for extreme values:',sep=" ")
 filelist$Comment[mysub] <-mycomment}
+=======
+
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 #------------------------------------------------------------
 # Get grand average and summary stats
 #------------------------------------------------------------
@@ -559,6 +593,7 @@ myaddcomment <- readline(prompt = "")
 }
   mycomment<-paste(filelist$Comment[mysub],'.',myaddcomment)
   filelist$Comment[mysub] <-mycomment
+<<<<<<< HEAD
 #now add raw L and R channel data to csv file
   myfirst<-(mysub-1)*1502+1
   mylast<-mysub*1502
@@ -571,6 +606,9 @@ myaddcomment <- readline(prompt = "")
   mymeanLR[(mymid+1):mylast,3]<-alltime
   mymeanLR[myfirst:mymid,4]<-Lmean
   mymeanLR[(mymid+1):mylast,4]<-Rmean
+=======
+
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
 }
 
   #write.xlsx is fussy about pathname and does not like ~ in path, hence path.expand here
@@ -578,6 +616,9 @@ outfileloc<-paste(path.expand(procdir),outfilename,sep='')
 #write.table(filelist, outfileloc, sep="\t",row.names=FALSE) #alternative for tab-sep
 write.xlsx(filelist, outfileloc,sheetName='data_summary',row.names=FALSE)
 
+<<<<<<< HEAD
 #now write the L and R mean datapoints to csv file
 
 write.csv(mymeanLR, longfile, row.names=F)
+=======
+>>>>>>> ca8d9cc0845289d170fce013211673f4354b286b
