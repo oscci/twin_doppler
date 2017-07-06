@@ -10,11 +10,15 @@
 #as you go through, by typing in the console. These comments will be stored in the xls file;
 #You can also add comments there manually.
 #------------------------------------------------------------------------------------------
+# Note to self: earlier problems because some columms in filelist were read in
+# as factors. Can use str(filelist) to see status of all column variables
+#------------------------------------------------------------------------------------------
 
 
 #This version corrected 19th May to use marker that coincides with start of trial
 # which is typically on channel 7
 # 20/5/17 Updated to read input from old format NLA files
+# 6/7/17 updated to write raw Lmean and Rmean data to long form file
 
 #NB Program reads lists of participants and details of preexcluded trials from xlsx
 # sheet, and then writes results.
@@ -56,8 +60,8 @@ postmarker=18;#times in seconds defining end of epoch
 poistart=4;#period of interest start in secs (ie after ? card)
 poiend=14;#period of interest end in secs
 baselinecorrect=1
-extremehi=140;#define values for rejecting bad epochs
-extremelo=60;
+extremehi=160;#define values for rejecting bad epochs
+extremelo=40;
 
 
 #------------------------------------------------------------------
@@ -72,7 +76,11 @@ initialdatacheck1=0; # set to 1 to view epochs after normalisation
 initialdatacheck2=0; #set to 1 to view epochs after heartbeat Correction
 initialdatacheck3=0; # set to 1 to visualise after baseline correction
 initialdatacheck4=1; # set to 1 to plot average for each subject
-
+#-----------------------------------------------------
+#read in a file for raw data for L and R averaged channels in long form.
+#This has 4 columns: ID, side, time and value. 
+longfile<-paste(procdir,'longrawDopplermeans.csv',sep='')
+mymeanLR <- read.csv(longfile)
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
@@ -98,7 +106,7 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
-for (mysub in 49:50){
+for (mysub in 101:102){
   markerchannel<-filelist$marker_channel[mysub]
 mygotfile<-0
 #Read NLA files
@@ -190,6 +198,9 @@ meanmarker<-mean(rawdata$marker)
 markersize<-meanmarker+5*sd(rawdata$marker)
 markerrange=seq(-prepoints:mylen-postpoints);#can't have markers right at start or end
 origmarkerlist=which(markersub>markersize)
+if (markerchannel==8){ #marker 8 corresponds to start of video.
+  origmarkerlist=origmarkerlist-prepoints;#need to subtract prepoints (-ve value, so add in effect)
+}
 while (origmarkerlist[1]<(-prepoints)){origmarkerlist<-origmarkerlist[2:length(origmarkerlist)]}
 # strip out any initial markers occuring before 1st possible baseline
 while(origmarkerlist[length(origmarkerlist)]>(mylen-postpoints))
@@ -208,14 +219,13 @@ intervals=intervals[1:(length(origmarkerlist)-1)] #ignore last
 #recording interrupted
 #Shorter intervals indicate there have been spurious markers
 
-spuriousmarkers=which(intervals<13) #in fact the short ones are the ones we want!
+spuriousmarkers=which(intervals<13) #we will discard short markers
 #brief interval  is duration of video
-# retain markers with short interval 
+# discard markers with short interval 
 if (length(spuriousmarkers)>0){
   spuriousmarkers=c(spuriousmarkers,length(origmarkerlist))
-  markerlist=origmarkerlist[spuriousmarkers]#keep first and those with index of spurious marker
+  markerlist=origmarkerlist[-spuriousmarkers]#keep first and discard those with index of spurious marker
   
-  #markerlist=origmarkerlist[-spuriousmarkers]#alternative:excluding those with short interval
   #  markerlist=markerlist[2:length(markerlist)]
   }
 if (length(spuriousmarkers)==0){markerlist=origmarkerlist}
@@ -225,11 +235,11 @@ if(nmarkers==(maxtrials+1))
 #----------------------------------------------------------------------
 # Identify excluded trials from xls file
 #----------------------------------------------------------------------
-myinclude=rep(1,length(markerlist)) #can default to include all if no data on trials in the excel file
-if (ncol(filelist)>3){
-  
-  myinclude=filelist[mysub,4:(3+length(markerlist))] 
-}
+
+myinclude=filelist[mysub,4:(3+length(markerlist))]
+#myinclude=as.numeric(filelist)
+#need as numeric to prevent it being a data frame, which creates problems later
+
 myremove=which(myinclude==9)#9 indicates trial not given
 if (length(myremove)>0)
 { markerlist=markerlist[-myremove]
@@ -252,8 +262,8 @@ zmultup=3.26;
 #-----------------------------------------------------------
 # identify extreme values; can also check each epoch visually
 #------------------------------------------------------------------
-droprej=rep(0,2) ;spikerej=droprej
-zmean=rep(0,2)
+droprej=rep(0,2) ;spikerej=droprej #initialise spikerej and droprej with zero
+zmean=rep(0,2) #initialise zmean
 mymax=max(rawdata[,2:3])
 intmax=100*(1+round(mymax/100))
 
@@ -297,6 +307,8 @@ for (mym in 1:nmarkers){
     }
   }
   timeline=rawdata$sec[1:(poiendpoints-prepoints)]
+  initialdatacheck<-1 #default is to show initial data check
+  if(filelist$manual_changes[mysub]==0){initialdatacheck=0}
   if (initialdatacheck==1) #set initialdatacheck to zero to avoid plotting
   {
     
@@ -320,13 +332,15 @@ for (mym in 1:nmarkers){
     text(0,location2,'1 = included; 0 = pre-excluded, -1 = rejected',cex=.7);
     cat("Press 9 for manual exclusion. Press 8 to retain excluded (-1). To retain current inclusion/exclusion status, press 1")
     myoverride <- as.integer(readline(prompt = ""))
+    if(is.na(myoverride)){myoverride<-1}
     if(myoverride>1){ #This is not ideal - will crash if just 'return'!
     if (myoverride==9){
       myinclude[mym]=-1}
     if (myoverride==8){
       myinclude[mym]=1}
     mycomment<-paste(filelist$Comment[mysub],'. Manual override',myoverride,'trial',mym)
-    filelist$Comment[mysub] <-mycomment}
+    filelist$Comment[mysub] <-mycomment
+    }
     dev.off #close figure here?
     
   } #end of if statement
@@ -451,7 +465,10 @@ for (mym in 1:nmarkers2){
   }
 }
 finalepochs=which(keepepoch==1)
-
+thisexclude<-nmarkers2-length(finalepochs)
+if (thisexclude>0){
+mycomment<-paste(filelist$Comment[mysub],thisexclude,'trials rejected for extreme values:',sep=" ")
+filelist$Comment[mysub] <-mycomment}
 #------------------------------------------------------------
 # Get grand average and summary stats
 #------------------------------------------------------------
@@ -520,7 +537,7 @@ if (initialdatacheck4==1){
   line <- readline()
 }
 
-filelist[mysub,35:43]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised,myLIodd,myLIeven)
+filelist[mysub,35:44]=c(myN,myLI,mylatency,myse,lowCI,hiCI,lateralised,myLIodd,myLIeven,length(origmarkerlist))
 
 print(paste("N accepted epochs = ",myN))
 print(paste("LI =",myLI,": 95% CI =",lowCI,'to',hiCI))
@@ -542,7 +559,18 @@ myaddcomment <- readline(prompt = "")
 }
   mycomment<-paste(filelist$Comment[mysub],'.',myaddcomment)
   filelist$Comment[mysub] <-mycomment
-
+#now add raw L and R channel data to csv file
+  myfirst<-(mysub-1)*1502+1
+  mylast<-mysub*1502
+  mymid<-myfirst+750
+  mymeanLR[myfirst:mylast,1]<-as.character(filelist$ID[mysub])
+  mymeanLR[myfirst:mymid,2]<-1
+  mymeanLR[(mymid+1):mylast,2]<-2
+  alltime<-seq(from=premarker, to=postmarker, by=.04)
+  mymeanLR[myfirst:mymid,3]<-alltime
+  mymeanLR[(mymid+1):mylast,3]<-alltime
+  mymeanLR[myfirst:mymid,4]<-Lmean
+  mymeanLR[(mymid+1):mylast,4]<-Rmean
 }
 
   #write.xlsx is fussy about pathname and does not like ~ in path, hence path.expand here
@@ -550,3 +578,6 @@ outfileloc<-paste(path.expand(procdir),outfilename,sep='')
 #write.table(filelist, outfileloc, sep="\t",row.names=FALSE) #alternative for tab-sep
 write.xlsx(filelist, outfileloc,sheetName='data_summary',row.names=FALSE)
 
+#now write the L and R mean datapoints to csv file
+
+write.csv(mymeanLR, longfile, row.names=F)
