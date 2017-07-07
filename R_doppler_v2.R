@@ -19,6 +19,10 @@
 # which is typically on channel 7
 # 20/5/17 Updated to read input from old format NLA files
 # 6/7/17 updated to write raw Lmean and Rmean data to long form file
+# 7/7/17 There was a problem with the ID column in the long file being a factor and
+# consequently writing NA rather than ID in column 1. 
+# I have corrected this, but ID needs writing in for mysub values from 100-112
+# (Will do this in separate loop)
 
 #NB Program reads lists of participants and details of preexcluded trials from xlsx
 # sheet, and then writes results.
@@ -80,7 +84,7 @@ initialdatacheck4=1; # set to 1 to plot average for each subject
 #read in a file for raw data for L and R averaged channels in long form.
 #This has 4 columns: ID, side, time and value. 
 longfile<-paste(procdir,'longrawDopplermeans.csv',sep='')
-mymeanLR <- read.csv(longfile)
+mymeanLR <- read.csv(longfile,stringsAsFactors=FALSE)
 #-----------------------------------------------------
 #read list of files to analyse
 #------------------------------------------------------------------------
@@ -91,9 +95,10 @@ outfileloc<-paste(procdir,outfilename,sep='')
 sourcefileloc<-outfileloc #now just reading and over-writing to same file
 #to get back to original data, need to read in orignal source file
 
-filelist <- read.xlsx(sourcefileloc,sheetIndex=1)
-filelist$Filename<-as.character(filelist$Filename) #to unfactor this column
-filelist$Comment<-as.character(filelist$Comment) 
+filelist <- read.xlsx(sourcefileloc,sheetIndex=1,stringsAsFactors=FALSE)
+# filelist$Filename<-as.character(filelist$Filename) #to unfactor this column
+# filelist$Comment<-as.character(filelist$Comment) 
+# filelist$ID<-as.character(filelist$ID) 
 # This is an xls file that has list of files, include/exclude, and flag for each trial
 # specifying whether it is included (or excluded because procedural error, 
 # such as talking during silent period, or not talking during talk period)
@@ -101,12 +106,11 @@ filelist$Comment<-as.character(filelist$Comment)
 # START ANALYSIS (SINGLE FILE VERSION), select and preprocess file
 
 
-#######################################################################
-mysub=9 #Row of xls file used to read and write data for this participant
+
 
 #select file here or have loop
 ########################################################################
-for (mysub in 107:108){
+for (mysub in 113:113){  #Row of xls file used to read and write data for this participant
   markerchannel<-filelist$marker_channel[mysub]
   mygotfile<-0
   #Read NLA files
@@ -564,7 +568,7 @@ for (mysub in 107:108){
   myfirst<-(mysub-1)*1502+1
   mylast<-mysub*1502
   mymid<-myfirst+750
-  mymeanLR[myfirst:mylast,1]<-as.character(filelist$ID[mysub])
+  mymeanLR[myfirst:mylast,1]<-filelist$ID[mysub]
   mymeanLR[myfirst:mymid,2]<-1
   mymeanLR[(mymid+1):mylast,2]<-2
   alltime<-seq(from=premarker, to=postmarker, by=.04)
