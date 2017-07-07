@@ -33,7 +33,7 @@
 # DONE: Add split half LI values
 # DONE Add user comment to output file
 # DONE: adapt to run in loop
-# PARTLY DONE: add error message if dodgy markers
+# DONE: add error message if dodgy markers
 
 #install.packages(c("xlsx","dplyr"))
 library(xlsx)
@@ -106,7 +106,7 @@ mysub=9 #Row of xls file used to read and write data for this participant
 
 #select file here or have loop
 ########################################################################
-for (mysub in 101:102){
+for (mysub in 107:108){
   markerchannel<-filelist$marker_channel[mysub]
   mygotfile<-0
   #Read NLA files
@@ -282,6 +282,7 @@ for (mysub in 101:102){
     #------------------------------------------------------------------
     myepoched <- array(0, dim=c(nmarkers,postpoints-prepoints+1,2,4))
     mybit=matrix(data = NA, nrow = poiendpoints-prepoints, ncol = 2)
+    manchange<-0 #default to no manual changes
     
     for (mym in 1:nmarkers){
       index1=markerlist[mym]+prepoints
@@ -309,9 +310,8 @@ for (mysub in 101:102){
       timeline=rawdata$sec[1:(poiendpoints-prepoints)]
       initialdatacheck<-1 #default is to show initial data check
       if(filelist$manual_changes[mysub]==0){initialdatacheck=0}
-      if (initialdatacheck==1) #set initialdatacheck to zero to avoid plotting
+      if (initialdatacheck==1) #set initialdatacheck to zero to avoid plotting individual trials
       {
-        
         #first plot the old values with no correction
         
         plot(timeline+premarker,mybit[,1],type="n",ylab='Amplitude',xlab='Time (s)');
@@ -334,7 +334,8 @@ for (mysub in 101:102){
         myoverride <- as.integer(readline(prompt = ""))
         if(is.na(myoverride)){myoverride<-1}
         if(myoverride>1){ #This is not ideal - will crash if just 'return'!
-          if (myoverride==9){
+          manchange<-1 #flag there have been manual changes
+            if (myoverride==9){
             myinclude[mym]=-1}
           if (myoverride==8){
             myinclude[mym]=1}
@@ -347,7 +348,7 @@ for (mysub in 101:102){
       
       
     } #next epoch
-    
+    filelist$manual_changes[mysub]<-manchange
     #------------------------------------------------------------------
     # Remove deleted epochs (originals in origdata; myepoched updated so only has retained epochs)
     #------------------------------------------------------------------
