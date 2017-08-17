@@ -11,7 +11,7 @@ library(yarrr)
 ############################################################
 #load csv data which is created by export option from Redcap
 file.loc<-"~/Dropbox/ERCadvanced/project twin kids/"
-filename<-c("TwinsData_DATA_2017-08-16_1247.csv") 
+filename<-c("TwinsData_DATA_2017-08-17_0704.csv") 
 my_dat<-data.frame(read_csv(paste0(file.loc,filename)))
 
 my_dat$lang_probs_old<-my_dat$lang_probs #create backup of lang probs
@@ -98,5 +98,19 @@ fornewfile<-select(my_dat,record_id,n_language_low,n_language_complete,lang_prob
 write.csv(fornewfile, file = "forimport.csv",row.names=FALSE)
 #This file can be used to import the revised/new cols to Redcap
 
+#-----------------------------------------------------------------------------------------------------
 #NB when importing to Redcap, inconsistencies are displayed. These need to be checked before final import
 #Most seemed to result from incomplete testing or missing data
+#This was used for comparison
+#From original Scoring Sheet twins (3).xls I created a csv for upload called: import_updated_langtests.csv
+#Then did check against what was already on Redcap from "TwinsData_DATA_2017-08-16_1247.csv" 
+# by exporting selected variables as per script below
+#Confirmed that Redcap version was missing some late data entries that were on xls.
+
+# forcheckfile<-select(my_dat,record_id, towre_words_ss, towre_nonwords_ss, wdck_jhsn_ss, 
+#                      nonword_rep_ss, sent_rep_ss, oromotor_range, nara_acc_ss, nara_comp_ss,
+#                      nara_rate_ss, phab_pic_ss, phab_digit_ss)
+# setwd("~/Dropbox/ERCadvanced/project twin kids")
+# write.csv(forcheckfile, file = "forcheckfile.csv",row.names=FALSE)
+#-----------------------------------------------------------------------------------------------------
+#
