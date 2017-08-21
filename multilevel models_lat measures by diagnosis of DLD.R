@@ -24,7 +24,8 @@ Nexcluded[3]<-length(which(data.short$laterality_index> 10|data.short$laterality
 data.short<-filter(data.short,abs(laterality_index)< 10)
 
 #-------------------------------------------------------
-# Produce pirate plots for threee laterality measures
+# Produce pirate plots and execute multilevel models for 
+# the threee laterality measures
 #-------------------------------------------------------
 
 laterality_measures<-data.short[,c(7,8,9)]
